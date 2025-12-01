@@ -1,22 +1,47 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth } from '../src/config/firebase'; // <--- Ajuste o caminho se necessário
 
 export default function Register() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
-    if (name.trim().length > 0 && email.trim().length > 0 && password.trim().length > 0) {
-      // Aqui você faria o cadastro no futuro
+  const handleRegister = async () => {
+    if (name.trim().length === 0 || email.trim().length === 0 || password.trim().length === 0) {
+      Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Cria o usuário na autenticação
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. Atualiza o perfil do usuário com o Nome fornecido
+      await updateProfile(user, {
+        displayName: name
+      });
+
       Alert.alert('Sucesso', 'Conta criada com sucesso!', [
         { text: 'OK', onPress: () => router.replace('/(tabs)') }
       ]);
-    } else {
-      Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
+
+    } catch (error: any) {
+      let msg = "Não foi possível criar a conta.";
+      if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
+      if (error.code === 'auth/invalid-email') msg = "E-mail inválido.";
+      if (error.code === 'auth/weak-password') msg = "A senha deve ter pelo menos 6 caracteres.";
+      
+      Alert.alert('Erro no Cadastro', msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,8 +92,16 @@ export default function Register() {
             />
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleRegister}>
-            <Text style={styles.buttonText}>Cadastrar</Text>
+          <TouchableOpacity 
+            style={[styles.button, loading && { opacity: 0.7 }]} 
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Cadastrar</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -132,33 +165,23 @@ const styles = StyleSheet.create({
     color: '#000',
     borderWidth: 1,
     borderColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   button: {
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
     borderRadius: 12,
-    paddingVertical: 18,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: 16,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 40,
+    marginTop: 32,
   },
   footerText: {
     color: '#666',

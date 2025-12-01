@@ -1,18 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../src/config/firebase'; // <--- Ajuste o caminho se necessário
 
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (email.trim().length > 0 && password.trim().length > 0) {
-      router.replace('/(tabs)'); 
-    } else {
+  const handleLogin = async () => {
+    if (email.trim().length === 0 || password.trim().length === 0) {
       Alert.alert('Atenção', 'Por favor, preencha e-mail e senha.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // O Firebase persiste o login automaticamente.
+      // Redireciona para a área logada
+      router.replace('/(tabs)'); 
+    } catch (error: any) {
+      let msg = "Ocorreu um erro ao fazer login.";
+      // Tratamento básico de erros comuns do Firebase
+      if (error.code === 'auth/invalid-email') msg = "E-mail inválido.";
+      if (error.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+      if (error.code === 'auth/wrong-password') msg = "Senha incorreta.";
+      if (error.code === 'auth/invalid-credential') msg = "Credenciais inválidas.";
+      
+      Alert.alert('Erro no Login', msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,8 +72,16 @@ export default function Login() {
             />
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Entrar</Text>
+          <TouchableOpacity 
+            style={[styles.button, loading && { opacity: 0.7 }]} 
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Entrar</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.forgotButton}>
@@ -120,32 +149,23 @@ const styles = StyleSheet.create({
     color: '#000',
     borderWidth: 1,
     borderColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    // shadowColor: '#000', (comentei para simplificar, ou mantenha seu estilo original)
   },
   button: {
-    backgroundColor: '#000000',
+    backgroundColor: '#000', // Ajuste para a cor do seu tema
     borderRadius: 12,
-    paddingVertical: 18,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: 16,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
   forgotButton: {
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 16,
   },
   forgotText: {
     color: '#666',
@@ -154,7 +174,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 40,
+    marginTop: 32,
   },
   footerText: {
     color: '#666',
