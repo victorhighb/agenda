@@ -10,6 +10,8 @@ import {
   FlatList,
   ScrollView,
   View,
+  Alert,
+  ActivityIndicator
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PrimaryButton from "../components/PrimaryButton";
@@ -32,13 +34,13 @@ const normalize = (s: string) =>
     .toLowerCase();
 
 export default function Scheduling() {
-  const { clients } = useClients();
-  const { schedules, addSchedule, updateSchedule, removeSchedule } = useSchedules();
+  const { clients } = useClients() as any;
+  const { schedules, addSchedule, updateSchedule, removeSchedule } = useSchedules() as any;
   const router = useRouter();
   const { id, date } = useLocalSearchParams<{ id?: string; date?: string }>();
 
   const editing = typeof id === "string" && id.length > 0;
-  const editingSchedule = editing ? schedules.find((s) => s.id === id) : undefined;
+  const editingSchedule = editing ? schedules.find((s: any) => s.id === id) : undefined;
 
   const [scheduleDate, setScheduleDate] = useState(
     (typeof date === "string" && date.length
@@ -55,6 +57,7 @@ export default function Scheduling() {
   const [payment, setPayment] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [isSaving, setIsSaving] = useState(false); // Estado de loading
 
   useEffect(() => {
     if (!editingSchedule) return;
@@ -71,7 +74,7 @@ export default function Scheduling() {
     setEndTime(editingSchedule.endTime || "");
   }, [editingSchedule]);
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedClient = clients.find((c: any) => c.id === selectedClientId);
 
   const handleValue = (v: string) => {
     const digits = v.replace(/[^\d]/g, "");
@@ -81,7 +84,6 @@ export default function Scheduling() {
   const handleStart = (v: string) => setStartTime(formatTime(v));
   const handleEnd = (v: string) => setEndTime(formatTime(v));
 
-  // Validação: endTime não é mais obrigatório
   const isValid = useMemo(
     () =>
       selectedClient &&
@@ -91,7 +93,7 @@ export default function Scheduling() {
     [selectedClient, title, value, startTime]
   );
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isValid || !selectedClient) return;
 
     const payload = {
@@ -105,19 +107,42 @@ export default function Scheduling() {
       endTime: endTime.trim().length >= 4 ? endTime : "",
     };
 
-    if (editing && editingSchedule) {
-      updateSchedule(editingSchedule.id, payload);
-    } else {
-      addSchedule(payload);
+    setIsSaving(true);
+    try {
+      if (editing && editingSchedule) {
+        await updateSchedule(editingSchedule.id, payload);
+      } else {
+        await addSchedule(payload);
+      }
+      router.back();
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível salvar o agendamento.");
+      setIsSaving(false);
     }
-    router.back();
   };
 
   const handleCancelAppointment = () => {
-    if (editing && editingSchedule) {
-      removeSchedule(editingSchedule.id);
-      router.back();
-    }
+    if (!editing || !editingSchedule) return;
+
+    Alert.alert(
+      "Cancelar Agendamento",
+      "Tem certeza que deseja cancelar este agendamento?",
+      [
+        { text: "Não", style: "cancel" },
+        { 
+          text: "Sim, cancelar", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeSchedule(editingSchedule.id);
+              router.back();
+            } catch (error) {
+              Alert.alert("Erro", "Não foi possível cancelar.");
+            }
+          }
+        }
+      ]
+    );
   };
 
   const filteredClients = useMemo(() => {
@@ -125,7 +150,7 @@ export default function Scheduling() {
     const q = normalize(raw);
     const digits = raw.replace(/\D/g, "");
     if (!q && !digits) return clients;
-    return clients.filter((c) => {
+    return clients.filter((c: any) => {
       const nameOk = q ? normalize(c.name).includes(q) : false;
       const phoneDigits = (c.phone || "").replace(/\D/g, "");
       const phoneOk = digits ? phoneDigits.includes(digits) : false;
@@ -151,6 +176,7 @@ export default function Scheduling() {
           style={styles.fieldWrapper}
           activeOpacity={0.6}
           onPress={() => setClientModal(true)}
+          disabled={isSaving}
         >
           <Text>{selectedClient ? selectedClient.name : "Selecionar cliente"}</Text>
         </TouchableOpacity>
@@ -163,6 +189,7 @@ export default function Scheduling() {
             placeholder="Ex: Corte de cabelo"
             style={styles.textInput}
             returnKeyType="next"
+            editable={!isSaving}
           />
         </View>
 
@@ -176,6 +203,7 @@ export default function Scheduling() {
             style={styles.textInput}
             returnKeyType="next"
             maxLength={7}
+            editable={!isSaving}
           />
         </View>
 
@@ -188,7 +216,12 @@ export default function Scheduling() {
                 key={m}
                 onPress={() => setPayment(m)}
                 activeOpacity={0.7}
-                style={[styles.methodPill, active && styles.methodPillActive]}
+                style={[
+                  styles.methodPill, 
+                  active && styles.methodPillActive,
+                  isSaving && { opacity: 0.5 }
+                ]}
+                disabled={isSaving}
               >
                 <Text>{m}</Text>
               </TouchableOpacity>
@@ -206,6 +239,7 @@ export default function Scheduling() {
             keyboardType="numeric"
             maxLength={5}
             returnKeyType="next"
+            editable={!isSaving}
           />
         </View>
 
@@ -219,19 +253,24 @@ export default function Scheduling() {
             keyboardType="numeric"
             maxLength={5}
             returnKeyType="done"
+            editable={!isSaving}
           />
         </View>
 
         <View style={{ height: 12 }} />
 
-        <PrimaryButton
-          title={editing ? "Salvar alterações" : "Salvar Agendamento"}
-          rightIconName="save-outline"
-          disabled={!isValid}
-          onPress={handleSubmit}
-        />
+        {isSaving ? (
+          <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />
+        ) : (
+          <PrimaryButton
+            title={editing ? "Salvar alterações" : "Salvar Agendamento"}
+            rightIconName="save-outline"
+            disabled={!isValid}
+            onPress={handleSubmit}
+          />
+        )}
 
-        {editing && (
+        {editing && !isSaving && (
           <TouchableOpacity
             style={styles.dangerButton}
             activeOpacity={0.7}

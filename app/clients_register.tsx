@@ -10,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PrimaryButton from "../components/PrimaryButton";
@@ -19,6 +20,7 @@ export default function ClientsRegister() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  // Usando 'as any' temporariamente se o TS reclamar dos tipos, mas o ideal é tipar corretamente
   const { clients, addClient, updateClient, removeClient } = useClients() as any;
 
   const editing = typeof id === "string" && id.length > 0;
@@ -27,6 +29,7 @@ export default function ClientsRegister() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!editingClient) return;
@@ -35,27 +38,32 @@ export default function ClientsRegister() {
     setAddress(editingClient.address || "");
   }, [editingClient]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !phone.trim()) {
       Alert.alert("Campos obrigatórios", "Preencha nome e telefone.");
       return;
     }
 
-    if (editing && editingClient) {
-      updateClient(editingClient.id, {
-        name: name.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-      });
-    } else {
-      addClient({
-        name: name.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-      });
+    setIsSaving(true);
+    try {
+      if (editing && editingClient) {
+        await updateClient(editingClient.id, {
+          name: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        });
+      } else {
+        await addClient({
+          name: name.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        });
+      }
+      router.back();
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível salvar as alterações.");
+      setIsSaving(false);
     }
-
-    router.back();
   };
 
   const handleDelete = () => {
@@ -69,9 +77,13 @@ export default function ClientsRegister() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => {
-            removeClient(editingClient.id);
-            router.back();
+          onPress: async () => {
+            try {
+              await removeClient(editingClient.id);
+              router.back();
+            } catch (error) {
+              Alert.alert("Erro", "Não foi possível excluir.");
+            }
           },
         },
       ]
@@ -93,6 +105,7 @@ export default function ClientsRegister() {
               placeholder="Nome do cliente"
               style={styles.textInput}
               returnKeyType="next"
+              editable={!isSaving}
             />
           </View>
 
@@ -105,6 +118,7 @@ export default function ClientsRegister() {
               keyboardType="phone-pad"
               style={styles.textInput}
               returnKeyType="next"
+              editable={!isSaving}
             />
           </View>
 
@@ -116,6 +130,7 @@ export default function ClientsRegister() {
               placeholder="Endereço (opcional)"
               style={styles.textInput}
               returnKeyType="done"
+              editable={!isSaving}
             />
           </View>
 
@@ -123,9 +138,10 @@ export default function ClientsRegister() {
 
           {editing && (
             <TouchableOpacity
-              style={styles.dangerButton}
+              style={[styles.dangerButton, isSaving && { opacity: 0.5 }]}
               activeOpacity={0.7}
               onPress={handleDelete}
+              disabled={isSaving}
             >
               <Ionicons name="trash-outline" size={18} color="#ff3b30" />
               <Text style={styles.dangerText}>Excluir cliente</Text>
@@ -135,12 +151,16 @@ export default function ClientsRegister() {
 
         {/*  SAFE AREA REAL PARA IOS + ANDROID  */}
         <View style={[styles.buttonSafeArea, { paddingBottom: insets.bottom + 10 }]}>
-          <PrimaryButton
-            title={editing ? "Salvar alterações" : "Cadastrar cliente"}
-            rightIconName="save-outline"
-            onPress={handleSave}
-            style={styles.primaryButton}
-          />
+          {isSaving ? (
+            <ActivityIndicator size="large" color="#000" style={{ marginBottom: 20 }} />
+          ) : (
+            <PrimaryButton
+              title={editing ? "Salvar alterações" : "Cadastrar cliente"}
+              rightIconName="save-outline"
+              onPress={handleSave}
+              style={styles.primaryButton}
+            />
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>

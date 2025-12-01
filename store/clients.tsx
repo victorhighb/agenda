@@ -1,67 +1,108 @@
-import React, { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where, 
+  onSnapshot 
+} from "firebase/firestore";
+import { auth, db } from "../src/config/firebase"; // Confirme se o caminho está correto
 
 export type Client = {
   id: string;
   name: string;
   phone: string;
   address?: string;
+  userId?: string; // Para saber de quem é esse cliente
 };
 
 type Ctx = {
   clients: Client[];
-  addClient: (c: Omit<Client, "id"> & { id?: string }) => Client;
-  updateClient: (id: string, patch: Partial<Client>) => Client | null;
-  removeClient: (id: string) => void;
-  upsertMany: (arr: Array<Omit<Client, "id"> & { id?: string }>) => void;
+  addClient: (c: Omit<Client, "id">) => Promise<void>;
+  updateClient: (id: string, patch: Partial<Client>) => Promise<void>;
+  removeClient: (id: string) => Promise<void>;
 };
 
 const ClientsContext = createContext<Ctx | null>(null);
 
 export function ClientsProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<Client[]>([]);
+  const [user, setUser] = useState(auth.currentUser);
 
-  const addClient: Ctx["addClient"] = (c) => {
-    const id = c.id ?? String(Date.now());
-    const client: Client = { ...c, id };
-    setClients((prev) => [client, ...prev]);
-    return client;
-  };
+  // Efeito para monitorar login e buscar dados em tempo real
+  useEffect(() => {
+    // 1. Monitora se o usuário mudou (login/logout)
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
 
-  const updateClient: Ctx["updateClient"] = (id, patch) => {
-    let updated: Client | null = null;
-    setClients((prev) =>
-      prev.map((it) => {
-        if (it.id !== id) return it;
-        updated = { ...it, ...patch, id: it.id };
-        return updated!;
-      })
-    );
-    return updated;
-  };
+      if (currentUser) {
+        // 2. Se está logado, cria uma query para buscar SÓ os clientes dele
+        const q = query(
+          collection(db, "clients"), 
+          where("userId", "==", currentUser.uid)
+        );
 
-  const removeClient: Ctx["removeClient"] = (id) => {
-    setClients((prev) => prev.filter((c) => c.id !== id));
-  };
+        // 3. 'onSnapshot' fica ouvindo o banco de dados em tempo real
+        const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
+          const clientsList: Client[] = [];
+          querySnapshot.forEach((doc) => {
+            clientsList.push({ id: doc.id, ...doc.data() } as Client);
+          });
+          setClients(clientsList);
+        });
 
-  const upsertMany: Ctx["upsertMany"] = (arr) => {
-    setClients((prev) => {
-      const copy = [...prev];
-      for (const c of arr) {
-        const id = c.id ?? String(Date.now() + Math.random());
-        const idx = copy.findIndex((x) => x.id === id);
-        if (idx >= 0) copy[idx] = { ...copy[idx], ...c, id };
-        else copy.push({ ...c, id });
+        return () => unsubscribeSnapshot();
+      } else {
+        // Se deslogou, limpa a lista local
+        setClients([]);
       }
-      return copy;
     });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  const addClient = async (c: Omit<Client, "id">) => {
+    if (!user) return; // Segurança extra
+    try {
+      await addDoc(collection(db, "clients"), {
+        ...c,
+        userId: user.uid,
+        createdAt: new Date() // Útil para ordenação futura
+      });
+      // Não precisamos dar setClients, o onSnapshot fará isso sozinho!
+    } catch (error) {
+      console.error("Erro ao adicionar cliente:", error);
+      throw error;
+    }
   };
 
-  const value = useMemo(
-    () => ({ clients, addClient, updateClient, removeClient, upsertMany }),
-    [clients]
-  );
+  const updateClient = async (id: string, patch: Partial<Client>) => {
+    try {
+      const docRef = doc(db, "clients", id);
+      await updateDoc(docRef, patch);
+    } catch (error) {
+      console.error("Erro ao atualizar:", error);
+      throw error;
+    }
+  };
 
-  return <ClientsContext.Provider value={value}>{children}</ClientsContext.Provider>;
+  const removeClient = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "clients", id));
+    } catch (error) {
+      console.error("Erro ao remover:", error);
+      throw error;
+    }
+  };
+
+  return (
+    <ClientsContext.Provider value={{ clients, addClient, updateClient, removeClient }}>
+      {children}
+    </ClientsContext.Provider>
+  );
 }
 
 export function useClients() {
