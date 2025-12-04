@@ -8,9 +8,6 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: "#fff" },
         tabBarStyle: {
             backgroundColor: "#fff",
-            //borderTopWidth: 0,
-            //elevation: 0,
-            //shadowOpacity: 0,
         },
         tabBarActiveTintColor: "#000",
         tabBarInactiveTintColor: "#666666",
