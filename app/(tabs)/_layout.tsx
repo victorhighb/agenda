@@ -1,5 +1,39 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { auth } from '../../src/config/firebase';
+import { useEffect, useState } from 'react';
+
+function UserDisplayName() {
+  const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setDisplayName(user?.displayName || '');
+    });
+    return unsubscribe;
+  }, []);
+
+  if (!displayName) return null;
+
+  return (
+    <View style={styles.headerRight}>
+      <Text style={styles.userName}>
+        {displayName}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerRight: {
+    marginRight: 16,
+  },
+  userName: {
+    fontSize: 14,
+    color: '#000',
+  },
+});
 
 export default function TabsLayout() {
   return (
@@ -16,6 +50,7 @@ export default function TabsLayout() {
         name="index" 
         options={{ 
             title: "Agenda",
+            headerRight: () => <UserDisplayName />,
             tabBarIcon: ({color, size}) => (
                 <Ionicons
                     name="calendar"
