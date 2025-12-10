@@ -4,6 +4,7 @@ import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../src/config/firebase';
+import * as SecureStore from 'expo-secure-store';
 
 export default function Login() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Save password in SecureStore after successful login
+      await SecureStore.setItemAsync(`user_password_${email}`, password);
       router.replace('/(tabs)'); 
     } catch (error: any) {
       let msg = "Ocorreu um erro ao fazer login. ";

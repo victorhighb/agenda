@@ -6,7 +6,8 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore'; 
 // Certifique-se de que 'db' é exportado do seu config. 
 // Se não tiver, adicione 'export const db = getFirestore(app);' no arquivo firebase.ts
-import { auth, db } from '../src/config/firebase'; 
+import { auth, db } from '../src/config/firebase';
+import * as SecureStore from 'expo-secure-store'; 
 
 export default function Register() {
   const router = useRouter();
@@ -54,6 +55,9 @@ export default function Register() {
         cpfCnpj: document, // Salva o documento validado
         createdAt: new Date().toISOString(),
       });
+
+      // Save password in SecureStore after successful registration
+      await SecureStore.setItemAsync(`user_password_${email}`, password);
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!', [
         { text: 'OK', onPress: () => router.replace('/(tabs)') }
