@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -120,12 +120,14 @@ export default function Profile() {
 
     // Get password from SecureStore or input field
     let passwordToUse = password;
+    let wasPasswordStored = false;
     try {
       const storedPassword = await SecureStore.getItemAsync(
         `user_password_${selectedUser.email}`
       );
       if (storedPassword) {
         passwordToUse = storedPassword;
+        wasPasswordStored = true;
       } else if (!password.trim()) {
         Alert.alert("Atenção", "Por favor, digite a senha.");
         return;
@@ -149,8 +151,11 @@ export default function Profile() {
           onPress: async () => {
             setSwitching(true);
             try {
-              // Logout from current account
+              // Logout from current account and wait for it to complete
               await signOut(auth);
+              
+              // Small delay to ensure auth state is cleared
+              await new Promise(resolve => setTimeout(resolve, 100));
 
               // Login with selected user
               await signInWithEmailAndPassword(
@@ -159,11 +164,13 @@ export default function Profile() {
                 passwordToUse
               );
 
-              // Save password in SecureStore for future use
-              await SecureStore.setItemAsync(
-                `user_password_${selectedUser.email}`,
-                passwordToUse
-              );
+              // Save password in SecureStore only if it was manually entered
+              if (!wasPasswordStored) {
+                await SecureStore.setItemAsync(
+                  `user_password_${selectedUser.email}`,
+                  passwordToUse
+                );
+              }
 
               // Close modal and redirect
               closeSwitchModal();
