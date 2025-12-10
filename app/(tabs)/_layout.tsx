@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Text, View } from 'react-native';
+import { auth } from '../../src/config/firebase';
 
 export default function TabsLayout() {
   return (
@@ -16,6 +18,13 @@ export default function TabsLayout() {
         name="index" 
         options={{ 
             title: "Agenda",
+            headerRight: () => (
+                <View style={{ marginRight: 16 }}>
+                    <Text style={{ fontSize: 14, color: '#000' }}>
+                        {auth.currentUser?.displayName || ''}
+                    </Text>
+                </View>
+            ),
             tabBarIcon: ({color, size}) => (
                 <Ionicons
                     name="calendar"
