@@ -85,3 +85,31 @@ The app now supports switching between accounts without re-entering passwords:
 - Switching is seamless and doesn't require password re-entry
 
 **Note**: This feature uses device-level secure storage, so credentials are only available on the device where the user first logged in.
+
+### Security Considerations for Account Switching
+
+⚠️ **Important Security Notes**:
+
+1. **Password Storage**: The current implementation stores encrypted passwords in SecureStore for convenience. While SecureStore uses hardware-backed encryption on supported devices, storing passwords (even encrypted) has security implications:
+   - Passwords are only accessible on the device where they were stored
+   - If a device is compromised, stored passwords could potentially be extracted
+   - **For production apps**, consider implementing one of these alternatives:
+     - Use Firebase Custom Tokens with a backend service
+     - Implement OAuth refresh tokens
+     - Use biometric authentication with session management
+     - Create a multi-account system that doesn't require password storage
+
+2. **Data Privacy**: The account switching feature fetches all user records from Firestore. In the current implementation:
+   - Only minimal user data (uid, name, email) is exposed for account selection
+   - Sensitive data (like cpfCnpj) is not included in the account list
+   - **For production apps**, consider:
+     - Implementing proper access control rules in Firestore
+     - Only allowing users to see accounts they've explicitly linked
+     - Using Cloud Functions to manage account relationships
+
+3. **Best Practices for Production**:
+   - Implement rate limiting for login attempts
+   - Add session management and timeouts
+   - Use biometric authentication for account switching
+   - Implement audit logging for account switches
+   - Consider using Firebase Authentication's multi-tenancy features

@@ -56,7 +56,9 @@ export default function Register() {
         createdAt: new Date().toISOString(),
       });
 
-      // 4. Save password in secure storage for passwordless account switching
+      // 4. SECURITY NOTE: Storing password in SecureStore for account switching convenience.
+      // This is encrypted at the device level but has security implications.
+      // For production apps, consider using Firebase Custom Tokens or OAuth refresh tokens instead.
       await SecureStore.setItemAsync(`password_${user.uid}`, password);
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!', [

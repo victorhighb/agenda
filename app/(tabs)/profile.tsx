@@ -28,10 +28,17 @@ export default function Profile() {
     try {
       const usersCollection = collection(db, "users");
       const usersSnapshot = await getDocs(usersCollection);
-      const usersList = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Only expose minimal user information for account switching
+      const usersList = usersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          uid: data.uid,
+          name: data.name,
+          email: data.email,
+          // Don't expose sensitive data like cpfCnpj
+        };
+      });
       setUsers(usersList);
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
@@ -58,7 +65,9 @@ export default function Profile() {
             setLoading(true);
             
             try {
-              // Get stored credentials for this user
+              // SECURITY NOTE: This retrieves the stored password from SecureStore.
+              // While SecureStore provides hardware-backed encryption, storing passwords
+              // has security implications. For production, consider Firebase Custom Tokens.
               const storedPassword = await SecureStore.getItemAsync(`password_${selectedUser.uid}`);
               
               if (!storedPassword) {
@@ -83,7 +92,7 @@ export default function Profile() {
               console.error("Erro ao trocar conta:", error);
               
               // If credentials are invalid, clear them and redirect to login
-              if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+              if (error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
                 await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
                 Alert.alert(
                   "Credenciais Inválidas",

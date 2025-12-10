@@ -27,7 +27,9 @@ export default function Login() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Save password in secure storage for passwordless account switching
+      // SECURITY NOTE: Storing passwords in SecureStore for account switching convenience.
+      // This is encrypted at the device level but has security implications.
+      // For production apps, consider using Firebase Custom Tokens or OAuth refresh tokens instead.
       await SecureStore.setItemAsync(`password_${userCredential.user.uid}`, password);
       
       router.replace('/(tabs)'); 
