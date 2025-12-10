@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { auth } from '../../src/config/firebase';
 import { useEffect, useState } from 'react';
 
@@ -14,14 +14,26 @@ function UserDisplayName() {
     return unsubscribe;
   }, []);
 
+  if (!displayName) return null;
+
   return (
-    <View style={{ marginRight: 16 }}>
-      <Text style={{ fontSize: 14, color: '#000' }}>
+    <View style={styles.headerRight}>
+      <Text style={styles.userName}>
         {displayName}
       </Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRight: {
+    marginRight: 16,
+  },
+  userName: {
+    fontSize: 14,
+    color: '#000',
+  },
+});
 
 export default function TabsLayout() {
   return (
