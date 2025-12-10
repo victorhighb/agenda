@@ -5,7 +5,7 @@ import { auth } from '../../src/config/firebase';
 import { useEffect, useState } from 'react';
 
 function UserDisplayName() {
-  const [displayName, setDisplayName] = useState(auth.currentUser?.displayName || '');
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
