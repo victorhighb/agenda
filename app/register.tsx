@@ -4,6 +4,7 @@ import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore'; 
+import * as SecureStore from 'expo-secure-store';
 // Certifique-se de que 'db' é exportado do seu config. 
 // Se não tiver, adicione 'export const db = getFirestore(app);' no arquivo firebase.ts
 import { auth, db } from '../src/config/firebase'; 
@@ -54,6 +55,11 @@ export default function Register() {
         cpfCnpj: document, // Salva o documento validado
         createdAt: new Date().toISOString(),
       });
+
+      // 4. SECURITY NOTE: Storing password in SecureStore for account switching convenience.
+      // This is encrypted at the device level but has security implications.
+      // For production apps, consider using Firebase Custom Tokens or OAuth refresh tokens instead.
+      await SecureStore.setItemAsync(`password_${user.uid}`, password);
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!', [
         { text: 'OK', onPress: () => router.replace('/(tabs)') }

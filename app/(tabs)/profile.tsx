@@ -1,19 +1,120 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Modal,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
-import { signOut } from "firebase/auth";
-import { auth } from "../../src/config/firebase";
+import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { collection, getDocs } from "firebase/firestore";
+import * as SecureStore from 'expo-secure-store';
+import { auth, db } from "../../src/config/firebase";
 
 export default function Profile() {
   const router = useRouter();
   const user = auth.currentUser;
+  const [accountsModalVisible, setAccountsModalVisible] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const usersCollection = collection(db, "users");
+      const usersSnapshot = await getDocs(usersCollection);
+      // Only expose minimal user information for account switching
+      const usersList = usersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          uid: data.uid,
+          name: data.name,
+          email: data.email,
+          // Don't expose sensitive data like cpfCnpj
+        };
+      });
+      setUsers(usersList);
+    } catch (error) {
+      console.error("Erro ao buscar usuários:", error);
+      Alert.alert("Erro", "Não foi possível carregar as contas.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitchAccount = async (selectedUser: any) => {
+    if (selectedUser.uid === user?.uid) {
+      return; // Already on this account
+    }
+
+    Alert.alert(
+      "Trocar de Conta",
+      `Deseja trocar para a conta de ${selectedUser.name}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Trocar",
+          onPress: async () => {
+            setAccountsModalVisible(false);
+            setLoading(true);
+            
+            try {
+              // SECURITY NOTE: This retrieves the stored password from SecureStore.
+              // While SecureStore provides hardware-backed encryption, storing passwords
+              // has security implications. For production, consider Firebase Custom Tokens.
+              const storedPassword = await SecureStore.getItemAsync(`password_${selectedUser.uid}`);
+              
+              if (!storedPassword) {
+                // No stored credentials, redirect to login
+                await signOut(auth);
+                Alert.alert(
+                  "Senha Necessária",
+                  `Para trocar para a conta de ${selectedUser.name}, você precisa fazer login primeiro.`,
+                  [{ text: "OK", onPress: () => router.replace("/login") }]
+                );
+                return;
+              }
+
+              // Sign out current user
+              await signOut(auth);
+              
+              // Sign in with the selected user's credentials
+              await signInWithEmailAndPassword(auth, selectedUser.email, storedPassword);
+              
+              Alert.alert("Sucesso", `Conta trocada para ${selectedUser.name}`);
+            } catch (error: any) {
+              console.error("Erro ao trocar conta:", error);
+              
+              // If credentials are invalid, clear them and redirect to login
+              if (error.code === 'auth/invalid-credential') {
+                await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
+                Alert.alert(
+                  "Credenciais Inválidas",
+                  "As credenciais salvas não são mais válidas. Faça login novamente.",
+                  [{ text: "OK", onPress: () => router.replace("/login") }]
+                );
+              } else {
+                Alert.alert("Erro", "Não foi possível trocar de conta. Tente novamente.");
+              }
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOpenAccountsModal = () => {
+    setAccountsModalVisible(true);
+    fetchUsers();
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -28,7 +129,7 @@ export default function Profile() {
             try {
               await signOut(auth);
               router.replace("/login");
-            } catch (error) {
+            } catch {
               Alert.alert("Erro", "Não foi possível sair.  Tente novamente.");
             }
           },
@@ -71,11 +172,74 @@ export default function Profile() {
         </View>
       </View>
 
+      {/* Botão de trocar conta */}
+      <TouchableOpacity style={styles.switchAccountButton} onPress={handleOpenAccountsModal}>
+        <Ionicons name="people-outline" size={24} color="#007AFF" />
+        <Text style={styles.switchAccountText}>Trocar de conta</Text>
+      </TouchableOpacity>
+
       {/* Botão de logout */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={24} color="#ff3b30" />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
+
+      {/* Modal de Contas */}
+      <Modal
+        visible={accountsModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAccountsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecione uma conta</Text>
+              <TouchableOpacity onPress={() => setAccountsModalVisible(false)}>
+                <Ionicons name="close" size={28} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#000" />
+                <Text style={styles.loadingText}>Carregando contas...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={users}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.accountItem,
+                      item.uid === user?.uid && styles.currentAccountItem
+                    ]}
+                    onPress={() => handleSwitchAccount(item)}
+                    disabled={item.uid === user?.uid}
+                  >
+                    <View style={styles.accountAvatar}>
+                      <Ionicons name="person" size={24} color="#666" />
+                    </View>
+                    <View style={styles.accountInfo}>
+                      <Text style={styles.accountName}>{item.name || "Sem nome"}</Text>
+                      <Text style={styles.accountEmail}>{item.email}</Text>
+                    </View>
+                    {item.uid === user?.uid && (
+                      <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Nenhuma conta encontrada</Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -138,6 +302,21 @@ const styles = StyleSheet.create({
     color: "#000",
     fontWeight: "500",
   },
+  switchAccountButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 12,
+  },
+  switchAccountText: {
+    fontSize: 16,
+    color: "#007AFF",
+    fontWeight: "600",
+  },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -153,5 +332,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#ff3b30",
     fontWeight: "600",
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#000",
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+  },
+  accountItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    gap: 12,
+  },
+  currentAccountItem: {
+    backgroundColor: "#f0f8ff",
+  },
+  accountAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#e0e0e0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+    marginBottom: 4,
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: "#666",
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#666",
   },
 });
