@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityInd
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import { auth } from '../src/config/firebase';
 
 export default function Login() {
@@ -24,7 +25,11 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Save password in secure storage for passwordless account switching
+      await SecureStore.setItemAsync(`password_${userCredential.user.uid}`, password);
+      
       router.replace('/(tabs)'); 
     } catch (error: any) {
       let msg = "Ocorreu um erro ao fazer login. ";
