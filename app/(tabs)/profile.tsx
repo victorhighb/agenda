@@ -92,7 +92,7 @@ export default function Profile() {
               console.error("Erro ao trocar conta:", error);
               
               // If credentials are invalid, clear them and redirect to login
-              if (error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials') {
+              if (error.code === 'auth/invalid-credential') {
                 await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
                 Alert.alert(
                   "Credenciais Inválidas",
