@@ -230,7 +230,12 @@ export default function Profile() {
       <View style={styles.infoContainer}>
         <View style={styles.nameContainer}>
           <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
-          <TouchableOpacity onPress={handleEditProfile} disabled={uploading}>
+          <TouchableOpacity 
+            onPress={handleEditProfile} 
+            disabled={uploading}
+            accessibilityLabel="Editar foto de perfil"
+            accessibilityHint="Toque para selecionar uma nova foto de perfil"
+          >
             <Ionicons name="create-outline" size={20} color="#007AFF" />
           </TouchableOpacity>
         </View>
