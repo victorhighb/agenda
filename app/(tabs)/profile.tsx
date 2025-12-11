@@ -10,11 +10,14 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import * as SecureStore from 'expo-secure-store';
-import { auth, db } from "../../src/config/firebase";
+import * as ImagePicker from 'expo-image-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from "../../src/config/firebase";
 
 export default function Profile() {
   const router = useRouter();
@@ -22,6 +25,7 @@ export default function Profile() {
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -116,6 +120,67 @@ export default function Profile() {
     fetchUsers();
   };
 
+  const handlePickImage = async () => {
+    try {
+      // Request permission to access media library
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await handleUploadImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+    }
+  };
+
+  const handleUploadImage = async (uri: string) => {
+    if (!user) return;
+
+    setUploading(true);
+    try {
+      // Convert image to blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Create storage reference
+      const storageRef = ref(storage, `profile_images/${user.uid}`);
+
+      // Upload image
+      await uploadBytes(storageRef, blob);
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Update user profile
+      await updateProfile(user, {
+        photoURL: downloadURL,
+      });
+
+      Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+      
+      // Force re-render by updating state
+      setUploading(false);
+    } catch (error) {
+      console.error('Erro ao fazer upload da imagem:', error);
+      Alert.alert('Erro', 'Não foi possível fazer upload da imagem.');
+      setUploading(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       "Sair",
@@ -141,10 +206,25 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       {/* Avatar */}
-      <View style={styles. avatarContainer}>
+      <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#666" />
+          {user?.photoURL ? (
+            <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={48} color="#666" />
+          )}
         </View>
+        <TouchableOpacity 
+          style={styles.editButton} 
+          onPress={handlePickImage}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name="pencil" size={16} color="#fff" />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Informações do usuário */}
@@ -262,6 +342,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  editButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#007AFF",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   infoContainer: {
     alignItems: "center",
