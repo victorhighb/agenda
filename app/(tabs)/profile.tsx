@@ -10,11 +10,14 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import * as SecureStore from 'expo-secure-store';
-import { auth, db } from "../../src/config/firebase";
+import * as ImagePicker from 'expo-image-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from "../../src/config/firebase";
 
 export default function Profile() {
   const router = useRouter();
@@ -22,6 +25,7 @@ export default function Profile() {
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -138,13 +142,84 @@ export default function Profile() {
     );
   };
 
+  const handleUploadPhoto = async () => {
+    try {
+      // Request permission to access media library
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert("Permissão Necessária", "É necessário permitir o acesso às fotos para fazer upload.");
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      setUploading(true);
+
+      const imageUri = result.assets[0].uri;
+      
+      // Convert image to blob
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Create a reference to the storage location
+      const filename = `profile_pictures/${user?.uid}_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+
+      // Upload the image
+      await uploadBytes(storageRef, blob);
+
+      // Get the download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Update user profile with the photo URL
+      if (user) {
+        await updateProfile(user, {
+          photoURL: downloadURL,
+        });
+        
+        Alert.alert("Sucesso", "Foto de perfil atualizada com sucesso!");
+      }
+    } catch (error: any) {
+      console.error("Erro ao fazer upload da foto:", error);
+      Alert.alert("Erro", "Não foi possível fazer upload da foto. Tente novamente.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Avatar */}
       <View style={styles. avatarContainer}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#666" />
+          {user?.photoURL ? (
+            <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={48} color="#666" />
+          )}
         </View>
+        <TouchableOpacity 
+          style={styles.editPhotoButton} 
+          onPress={handleUploadPhoto}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name="pencil" size={18} color="#fff" />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Informações do usuário */}
@@ -262,6 +337,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+  },
+  editPhotoButton: {
+    position: "absolute",
+    bottom: 0,
+    right: "50%",
+    marginRight: -50,
+    backgroundColor: "#007AFF",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#f5f5f5",
   },
   infoContainer: {
     alignItems: "center",
