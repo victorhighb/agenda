@@ -10,9 +10,12 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import { auth, db } from "../../src/config/firebase";
 
@@ -22,6 +25,8 @@ export default function Profile() {
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(user?.photoURL || null);
+  const [uploading, setUploading] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -45,6 +50,71 @@ export default function Profile() {
       Alert.alert("Erro", "Não foi possível carregar as contas.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditProfile = async () => {
+    try {
+      // Request media library permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          "Permissão Necessária",
+          "Precisamos de permissão para acessar suas fotos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setUploading(true);
+        
+        const imageUri = result.assets[0].uri;
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          Alert.alert("Erro", "Usuário não autenticado.");
+          return;
+        }
+
+        // Upload to Firebase Storage
+        const storage = getStorage(auth.app);
+        const filename = `profile_photos/${currentUser.uid}`;
+        const storageRef = ref(storage, filename);
+        
+        // Convert image to blob
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        
+        // Upload the image
+        await uploadBytes(storageRef, blob);
+        
+        // Get the download URL
+        const downloadURL = await getDownloadURL(storageRef);
+        
+        // Update user profile
+        await updateProfile(currentUser, {
+          photoURL: downloadURL,
+        });
+        
+        // Update local state
+        setAvatar(downloadURL);
+        
+        Alert.alert("Sucesso", "Foto de perfil atualizada!");
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar foto:", error);
+      Alert.alert("Erro", "Não foi possível atualizar a foto de perfil.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -141,15 +211,29 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       {/* Avatar */}
-      <View style={styles. avatarContainer}>
+      <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#666" />
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={styles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={48} color="#666" />
+          )}
         </View>
+        {uploading && (
+          <View style={styles.uploadingOverlay}>
+            <ActivityIndicator size="small" color="#007AFF" />
+          </View>
+        )}
       </View>
 
       {/* Informações do usuário */}
       <View style={styles.infoContainer}>
-        <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+        <View style={styles.nameContainer}>
+          <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+          <TouchableOpacity onPress={handleEditProfile} disabled={uploading}>
+            <Ionicons name="create-outline" size={20} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.email}>{user?.email || "email@exemplo.com"}</Text>
       </View>
 
@@ -262,10 +346,32 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  uploadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 50,
   },
   infoContainer: {
     alignItems: "center",
     marginBottom: 32,
+  },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
   },
   name: {
     fontSize: 24,
