@@ -10,25 +10,108 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
+import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore"; // Adicionei updateDoc e doc
+// REMOVIDO: imports do firebase/storage (ref, uploadBytes, etc)
+
 import * as SecureStore from 'expo-secure-store';
+import * as ImagePicker from 'expo-image-picker';
+
+// Importando auth e db (storage não precisa mais aqui para upload)
 import { auth, db } from "../../src/config/firebase";
+
+// IMPORTAR O SERVIÇO QUE CRIAMOS
+import { uploadToCloudinary } from "../../src/services/cloudinary"; // Ajuste o caminho se necessário
 
 export default function Profile() {
   const router = useRouter();
   const user = auth.currentUser;
+
+  const [avatarUrl, setAvatarUrl] = useState(user?.photoURL);
+  // ... outros states (accountsModalVisible, users, loading, etc) ...
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
+  // --- Função de Escolher Imagem (IGUAL) ---
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status !== 'granted') {
+      Alert.alert("Permissão necessária", "Precisamos de acesso à galeria.");
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      handleImageUpload(result.assets[0].uri);
+    }
+  };
+
+  // --- NOVA Função de Upload com Cloudinary ---
+  const handleImageUpload = async (uri: string) => {
+    setUploadingImage(true);
+    
+    try {
+      if (!user) return;
+
+      // 1. Enviar para o Cloudinary
+      const cloudinaryUrl = await uploadToCloudinary(uri);
+
+      if (!cloudinaryUrl) {
+        throw new Error("Falha ao obter URL do Cloudinary");
+      }
+
+      // --- AQUI A MÁGICA DO ÍCONE ---
+      // Se você quiser adicionar o ícone via URL transformation, faria algo assim:
+      // const finalUrl = cloudinaryUrl.replace("/upload/", "/upload/l_icon_vip,w_50,g_south_east/");
+      // Por enquanto, vamos usar a URL normal:
+      const finalUrl = cloudinaryUrl;
+
+      // 2. Atualizar Auth do Firebase (Profile do usuário)
+      await updateProfile(user, {
+        photoURL: finalUrl,
+      });
+
+      // 3. Atualizar documento no Firestore (Opcional, mas recomendado para manter sync)
+      // Se você salva dados do usuário no Firestore, atualize lá também
+      try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          photoURL: finalUrl
+        });
+      } catch (firestoreError) {
+        console.log("Erro ao atualizar firestore (não crítico):", firestoreError);
+      }
+
+      setAvatarUrl(finalUrl);
+      Alert.alert("Sucesso", "Foto de perfil atualizada!");
+
+    } catch (error: any) {
+      console.error("Erro detalhado:", error);
+      Alert.alert("Erro no Upload", "Não foi possível enviar a imagem. Tente novamente.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // ... O RESTO DO CÓDIGO CONTINUA IGUAL ...
+  // (fetchUsers, handleSwitchAccount, handleLogout, return, styles...)
+  
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const usersCollection = collection(db, "users");
       const usersSnapshot = await getDocs(usersCollection);
-      // Only expose minimal user information for account switching
       const usersList = usersSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -36,7 +119,6 @@ export default function Profile() {
           uid: data.uid,
           name: data.name,
           email: data.email,
-          // Don't expose sensitive data like cpfCnpj
         };
       });
       setUsers(usersList);
@@ -49,9 +131,7 @@ export default function Profile() {
   };
 
   const handleSwitchAccount = async (selectedUser: any) => {
-    if (selectedUser.uid === user?.uid) {
-      return; // Already on this account
-    }
+    if (selectedUser.uid === user?.uid) return;
 
     Alert.alert(
       "Trocar de Conta",
@@ -63,15 +143,9 @@ export default function Profile() {
           onPress: async () => {
             setAccountsModalVisible(false);
             setLoading(true);
-            
             try {
-              // SECURITY NOTE: This retrieves the stored password from SecureStore.
-              // While SecureStore provides hardware-backed encryption, storing passwords
-              // has security implications. For production, consider Firebase Custom Tokens.
               const storedPassword = await SecureStore.getItemAsync(`password_${selectedUser.uid}`);
-              
               if (!storedPassword) {
-                // No stored credentials, redirect to login
                 await signOut(auth);
                 Alert.alert(
                   "Senha Necessária",
@@ -80,27 +154,14 @@ export default function Profile() {
                 );
                 return;
               }
-
-              // Sign out current user
               await signOut(auth);
-              
-              // Sign in with the selected user's credentials
               await signInWithEmailAndPassword(auth, selectedUser.email, storedPassword);
-              
               Alert.alert("Sucesso", `Conta trocada para ${selectedUser.name}`);
             } catch (error: any) {
               console.error("Erro ao trocar conta:", error);
-              
-              // If credentials are invalid, clear them and redirect to login
               if (error.code === 'auth/invalid-credential') {
                 await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
-                Alert.alert(
-                  "Credenciais Inválidas",
-                  "As credenciais salvas não são mais válidas. Faça login novamente.",
-                  [{ text: "OK", onPress: () => router.replace("/login") }]
-                );
-              } else {
-                Alert.alert("Erro", "Não foi possível trocar de conta. Tente novamente.");
+                Alert.alert("Erro", "Credenciais inválidas.");
               }
             } finally {
               setLoading(false);
@@ -119,7 +180,7 @@ export default function Profile() {
   const handleLogout = async () => {
     Alert.alert(
       "Sair",
-      "Tem certeza que deseja sair da sua conta?",
+      "Tem certeza que deseja sair?",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -130,7 +191,7 @@ export default function Profile() {
               await signOut(auth);
               router.replace("/login");
             } catch {
-              Alert.alert("Erro", "Não foi possível sair.  Tente novamente.");
+              Alert.alert("Erro", "Não foi possível sair.");
             }
           },
         },
@@ -140,16 +201,36 @@ export default function Profile() {
 
   return (
     <View style={styles.container}>
-      {/* Avatar */}
-      <View style={styles. avatarContainer}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#666" />
-        </View>
+      {/* Avatar Container */}
+      <View style={styles.avatarContainer}>
+        {uploadingImage ? (
+           <View style={[styles.avatar, { backgroundColor: '#f0f0f0' }]}>
+             <ActivityIndicator color="#007AFF" />
+           </View>
+        ) : (
+          <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={48} color="#666" />
+              </View>
+            )}
+            <View style={styles.editIconOverlay}>
+              <Ionicons name="camera" size={14} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Informações do usuário */}
       <View style={styles.infoContainer}>
-        <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+          <TouchableOpacity onPress={pickImage} style={styles.editNameButton}>
+            <Ionicons name="pencil" size={20} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.email}>{user?.email || "email@exemplo.com"}</Text>
       </View>
 
@@ -158,33 +239,32 @@ export default function Profile() {
         <View style={styles.infoCard}>
           <Ionicons name="person-outline" size={24} color="#000" />
           <View style={styles.infoCardContent}>
-            <Text style={styles. infoCardLabel}>Nome</Text>
+            <Text style={styles.infoCardLabel}>Nome</Text>
             <Text style={styles.infoCardValue}>{user?.displayName || "Não informado"}</Text>
           </View>
         </View>
 
         <View style={styles.infoCard}>
           <Ionicons name="mail-outline" size={24} color="#000" />
-          <View style={styles. infoCardContent}>
+          <View style={styles.infoCardContent}>
             <Text style={styles.infoCardLabel}>E-mail</Text>
             <Text style={styles.infoCardValue}>{user?.email || "Não informado"}</Text>
           </View>
         </View>
       </View>
 
-      {/* Botão de trocar conta */}
+      {/* Botões */}
       <TouchableOpacity style={styles.switchAccountButton} onPress={handleOpenAccountsModal}>
         <Ionicons name="people-outline" size={24} color="#007AFF" />
         <Text style={styles.switchAccountText}>Trocar de conta</Text>
       </TouchableOpacity>
 
-      {/* Botão de logout */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={24} color="#ff3b30" />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
 
-      {/* Modal de Contas */}
+      {/* Modal */}
       <Modal
         visible={accountsModalVisible}
         animationType="slide"
@@ -255,6 +335,9 @@ const styles = StyleSheet.create({
     marginTop: 32,
     marginBottom: 16,
   },
+  avatarWrapper: {
+    position: 'relative',
+  },
   avatar: {
     width: 100,
     height: 100,
@@ -263,9 +346,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  editIconOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#007AFF',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#f5f5f5'
+  },
   infoContainer: {
     alignItems: "center",
     marginBottom: 32,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  editNameButton: {
+    padding: 4,
   },
   name: {
     fontSize: 24,
@@ -333,7 +443,6 @@ const styles = StyleSheet.create({
     color: "#ff3b30",
     fontWeight: "600",
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
