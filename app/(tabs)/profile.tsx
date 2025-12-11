@@ -10,9 +10,12 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from 'expo-secure-store';
 import { auth, db } from "../../src/config/firebase";
 
@@ -22,6 +25,8 @@ export default function Profile() {
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(user?.photoURL || null);
+  const [uploading, setUploading] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -45,6 +50,53 @@ export default function Profile() {
       Alert.alert("Erro", "Não foi possível carregar as contas.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateAvatar = async () => {
+    try {
+      // Request permission and launch image library
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images" as any,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const imageUri = result.assets[0].uri;
+      setUploading(true);
+
+      // Convert image URI to blob
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Upload to Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, `profile_photos/${user?.uid}`);
+      await uploadBytes(storageRef, blob);
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Update user profile
+      if (user) {
+        await updateProfile(user, {
+          photoURL: downloadURL,
+        });
+      }
+
+      // Update local state
+      setAvatar(downloadURL);
+      Alert.alert("Sucesso", "Foto de perfil atualizada!");
+    } catch (error) {
+      console.error("Erro ao atualizar avatar:", error);
+      Alert.alert("Erro", "Não foi possível atualizar a foto de perfil.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -141,15 +193,35 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       {/* Avatar */}
-      <View style={styles. avatarContainer}>
+      <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Ionicons name="person" size={48} color="#666" />
+          {(avatar || user?.photoURL) ? (
+            <Image 
+              source={{ uri: avatar || user?.photoURL || undefined }} 
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Ionicons name="person" size={48} color="#666" />
+          )}
         </View>
       </View>
 
       {/* Informações do usuário */}
       <View style={styles.infoContainer}>
-        <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+        <View style={styles.nameContainer}>
+          <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
+          <TouchableOpacity 
+            onPress={handleUpdateAvatar}
+            disabled={uploading}
+            style={styles.editButton}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color="#007AFF" />
+            ) : (
+              <Ionicons name="pencil" size={20} color="#007AFF" />
+            )}
+          </TouchableOpacity>
+        </View>
         <Text style={styles.email}>{user?.email || "email@exemplo.com"}</Text>
       </View>
 
@@ -262,10 +334,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   infoContainer: {
     alignItems: "center",
     marginBottom: 32,
+  },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  editButton: {
+    padding: 4,
   },
   name: {
     fontSize: 24,
