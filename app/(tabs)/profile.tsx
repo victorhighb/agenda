@@ -201,7 +201,7 @@ export default function Profile() {
   return (
     <View style={styles.container}>
       {/* Avatar */}
-      <View style={styles. avatarContainer}>
+      <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
           {user?.photoURL ? (
             <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
@@ -233,14 +233,14 @@ export default function Profile() {
         <View style={styles.infoCard}>
           <Ionicons name="person-outline" size={24} color="#000" />
           <View style={styles.infoCardContent}>
-            <Text style={styles. infoCardLabel}>Nome</Text>
+            <Text style={styles.infoCardLabel}>Nome</Text>
             <Text style={styles.infoCardValue}>{user?.displayName || "Não informado"}</Text>
           </View>
         </View>
 
         <View style={styles.infoCard}>
           <Ionicons name="mail-outline" size={24} color="#000" />
-          <View style={styles. infoCardContent}>
+          <View style={styles.infoCardContent}>
             <Text style={styles.infoCardLabel}>E-mail</Text>
             <Text style={styles.infoCardValue}>{user?.email || "Não informado"}</Text>
           </View>
@@ -342,12 +342,12 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: 100,
     height: 100,
+    borderRadius: 50,
   },
   editPhotoButton: {
     position: "absolute",
     bottom: 0,
-    right: "50%",
-    marginRight: -50,
+    alignSelf: "center",
     backgroundColor: "#007AFF",
     width: 36,
     height: 36,
