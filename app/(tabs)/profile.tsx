@@ -29,7 +29,7 @@ export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState(auth.currentUser);
 
-  const [avatarUrl, setAvatarUrl] = useState(user?.photoURL);
+  const [avatarUrl, setAvatarUrl] = useState(auth.currentUser?.photoURL);
   // ... outros states (accountsModalVisible, users, loading, etc) ...
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
@@ -40,7 +40,7 @@ export default function Profile() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser: User | null) => {
       setUser(currentUser);
-      setAvatarUrl(currentUser?.photoURL || null);
+      setAvatarUrl(currentUser?.photoURL);
     });
 
     // Cleanup subscription on unmount
