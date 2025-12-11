@@ -130,6 +130,7 @@ export default function Profile() {
           uid: data.uid,
           name: data.name,
           email: data.email,
+          photoURL: data.photoURL || null, // agora trazemos a foto se existir
         };
       });
       setUsers(usersList);
@@ -309,8 +310,16 @@ export default function Profile() {
                     onPress={() => handleSwitchAccount(item)}
                     disabled={item.uid === user?.uid}
                   >
+                    {/* Mostrar imagem circular quando existir photoURL */}
                     <View style={styles.accountAvatar}>
-                      <Ionicons name="person" size={24} color="#666" />
+                      {item.photoURL ? (
+                        <Image
+                          source={{ uri: item.photoURL }}
+                          style={styles.accountAvatarImage}
+                        />
+                      ) : (
+                        <Ionicons name="person" size={24} color="#666" />
+                      )}
                     </View>
                     <View style={styles.accountInfo}>
                       <Text style={styles.accountName}>{item.name || "Sem nome"}</Text>
@@ -506,6 +515,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  // Estilo da imagem (circular) usado dentro do avatar menor
+  accountAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   accountInfo: {
     flex: 1,
