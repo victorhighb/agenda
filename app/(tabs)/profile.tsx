@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   StyleSheet,
@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import { signOut, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword, updateProfile, User } from "firebase/auth";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore"; // Adicionei updateDoc e doc
 // REMOVIDO: imports do firebase/storage (ref, uploadBytes, etc)
 
@@ -27,14 +27,25 @@ import { uploadToCloudinary } from "../../src/services/cloudinary"; // Ajuste o 
 
 export default function Profile() {
   const router = useRouter();
-  const user = auth.currentUser;
+  const [user, setUser] = useState(auth.currentUser);
 
-  const [avatarUrl, setAvatarUrl] = useState(user?.photoURL);
+  const [avatarUrl, setAvatarUrl] = useState(auth.currentUser?.photoURL);
   // ... outros states (accountsModalVisible, users, loading, etc) ...
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser: User | null) => {
+      setUser(currentUser);
+      setAvatarUrl(currentUser?.photoURL);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
 
   // --- Função de Escolher Imagem (IGUAL) ---
   const pickImage = async () => {
