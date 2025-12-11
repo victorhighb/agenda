@@ -55,9 +55,14 @@ export default function Profile() {
 
   const handleUpdateAvatar = async () => {
     try {
+      if (!user) {
+        Alert.alert("Erro", "Usuário não autenticado.");
+        return;
+      }
+
       // Request permission and launch image library
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images" as any,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -76,18 +81,16 @@ export default function Profile() {
 
       // Upload to Firebase Storage
       const storage = getStorage();
-      const storageRef = ref(storage, `profile_photos/${user?.uid}`);
+      const storageRef = ref(storage, `profile_photos/${user.uid}`);
       await uploadBytes(storageRef, blob);
 
       // Get download URL
       const downloadURL = await getDownloadURL(storageRef);
 
       // Update user profile
-      if (user) {
-        await updateProfile(user, {
-          photoURL: downloadURL,
-        });
-      }
+      await updateProfile(user, {
+        photoURL: downloadURL,
+      });
 
       // Update local state
       setAvatar(downloadURL);
@@ -197,7 +200,7 @@ export default function Profile() {
         <View style={styles.avatar}>
           {(avatar || user?.photoURL) ? (
             <Image 
-              source={{ uri: avatar || user?.photoURL || undefined }} 
+              source={{ uri: avatar || user?.photoURL! }} 
               style={styles.avatarImage}
             />
           ) : (
