@@ -13,41 +13,53 @@ import {
   Image,
 } from "react-native";
 import { signOut, signInWithEmailAndPassword, updateProfile, User } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore"; // Adicionei updateDoc e doc
-// REMOVIDO: imports do firebase/storage (ref, uploadBytes, etc)
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
 
-// Importando auth e db (storage não precisa mais aqui para upload)
 import { auth, db } from "../../src/config/firebase";
-
-// IMPORTAR O SERVIÇO QUE CRIAMOS
-import { uploadToCloudinary } from "../../src/services/cloudinary"; // Ajuste o caminho se necessário
+import { uploadToCloudinary } from "../../src/services/cloudinary";
 
 export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState(auth.currentUser);
+  
+  // Estado local para guardar dados extras do Firestore (ex: telefone)
+  const [userPhone, setUserPhone] = useState<string>(""); 
 
   const [avatarUrl, setAvatarUrl] = useState(auth.currentUser?.photoURL);
-  // ... outros states (accountsModalVisible, users, loading, etc) ...
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Subscribe to auth state changes
+  // Subscribe to auth state changes AND fetch firestore data
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser: User | null) => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser: User | null) => {
       setUser(currentUser);
       setAvatarUrl(currentUser?.photoURL);
+      
+      if (currentUser) {
+        // Buscar dados adicionais do usuário atual no Firestore
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            setUserPhone(data.phone || ""); // Define o telefone
+          }
+        } catch (error) {
+          console.error("Erro ao buscar dados do usuário:", error);
+        }
+      } else {
+        setUserPhone("");
+      }
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
-  // --- Função de Escolher Imagem (IGUAL) ---
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -68,33 +80,24 @@ export default function Profile() {
     }
   };
 
-  // --- NOVA Função de Upload com Cloudinary ---
   const handleImageUpload = async (uri: string) => {
     setUploadingImage(true);
     
     try {
       if (!user) return;
 
-      // 1. Enviar para o Cloudinary
       const cloudinaryUrl = await uploadToCloudinary(uri);
 
       if (!cloudinaryUrl) {
         throw new Error("Falha ao obter URL do Cloudinary");
       }
 
-      // --- AQUI A MÁGICA DO ÍCONE ---
-      // Se você quiser adicionar o ícone via URL transformation, faria algo assim:
-      // const finalUrl = cloudinaryUrl.replace("/upload/", "/upload/l_icon_vip,w_50,g_south_east/");
-      // Por enquanto, vamos usar a URL normal:
       const finalUrl = cloudinaryUrl;
 
-      // 2. Atualizar Auth do Firebase (Profile do usuário)
       await updateProfile(user, {
         photoURL: finalUrl,
       });
 
-      // 3. Atualizar documento no Firestore (Opcional, mas recomendado para manter sync)
-      // Se você salva dados do usuário no Firestore, atualize lá também
       try {
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
@@ -114,9 +117,6 @@ export default function Profile() {
       setUploadingImage(false);
     }
   };
-
-  // ... O RESTO DO CÓDIGO CONTINUA IGUAL ...
-  // (fetchUsers, handleSwitchAccount, handleLogout, return, styles...)
   
   const fetchUsers = async () => {
     setLoading(true);
@@ -130,7 +130,8 @@ export default function Profile() {
           uid: data.uid,
           name: data.name,
           email: data.email,
-          photoURL: data.photoURL || null, // agora trazemos a foto se existir
+          photoURL: data.photoURL || null,
+          phone: data.phone || "", // Trazemos o telefone na lista de troca de contas também
         };
       });
       setUsers(usersList);
@@ -263,6 +264,15 @@ export default function Profile() {
             <Text style={styles.infoCardValue}>{user?.email || "Não informado"}</Text>
           </View>
         </View>
+
+        {/* Novo Card de Telefone */}
+        <View style={styles.infoCard}>
+          <Ionicons name="call-outline" size={24} color="#000" />
+          <View style={styles.infoCardContent}>
+            <Text style={styles.infoCardLabel}>Telefone</Text>
+            <Text style={styles.infoCardValue}>{userPhone || "Não informado"}</Text>
+          </View>
+        </View>
       </View>
 
       {/* Botões */}
@@ -310,7 +320,6 @@ export default function Profile() {
                     onPress={() => handleSwitchAccount(item)}
                     disabled={item.uid === user?.uid}
                   >
-                    {/* Mostrar imagem circular quando existir photoURL */}
                     <View style={styles.accountAvatar}>
                       {item.photoURL ? (
                         <Image
@@ -324,6 +333,10 @@ export default function Profile() {
                     <View style={styles.accountInfo}>
                       <Text style={styles.accountName}>{item.name || "Sem nome"}</Text>
                       <Text style={styles.accountEmail}>{item.email}</Text>
+                      {/* Exibe o telefone na lista de troca de contas se houver */}
+                      {!!item.phone && (
+                        <Text style={styles.accountPhone}>{item.phone}</Text>
+                      )}
                     </View>
                     {item.uid === user?.uid && (
                       <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
@@ -517,7 +530,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  // Estilo da imagem (circular) usado dentro do avatar menor
   accountAvatarImage: {
     width: 48,
     height: 48,
@@ -535,6 +547,11 @@ const styles = StyleSheet.create({
   accountEmail: {
     fontSize: 14,
     color: "#666",
+  },
+  accountPhone: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
   },
   emptyContainer: {
     padding: 40,

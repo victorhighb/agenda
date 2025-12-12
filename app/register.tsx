@@ -1,30 +1,34 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore'; 
 import * as SecureStore from 'expo-secure-store';
-// Certifique-se de que 'db' é exportado do seu config. 
-// Se não tiver, adicione 'export const db = getFirestore(app);' no arquivo firebase.ts
 import { auth, db } from '../src/config/firebase'; 
 
 export default function Register() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [document, setDocument] = useState(''); // Estado para CPF/CNPJ
+  const [phone, setPhone] = useState(''); // Estado para Telefone
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Aplica a máscara enquanto digita
+  // Aplica a máscara de Documento enquanto digita
   const handleDocumentChange = (text: string) => {
     setDocument(formatCpfCnpj(text));
   };
 
+  // Aplica a máscara de Telefone enquanto digita
+  const handlePhoneChange = (text: string) => {
+    setPhone(formatPhone(text));
+  };
+
   const handleRegister = async () => {
     // Validação básica de campos vazios
-    if (name.trim().length === 0 || email.trim().length === 0 || password.trim().length === 0 || document.trim().length === 0) {
+    if (name.trim().length === 0 || email.trim().length === 0 || password.trim().length === 0 || document.trim().length === 0 || phone.trim().length === 0) {
       Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
       return;
     }
@@ -47,18 +51,16 @@ export default function Register() {
       });
 
       // 3. Salva os dados complementares no Banco de Dados (Firestore)
-      // Cria um documento na coleção "users" com o ID igual ao UID do usuário
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: name,
         email: email,
         cpfCnpj: document, // Salva o documento validado
+        phone: phone,      // Salva o telefone
         createdAt: new Date().toISOString(),
       });
 
-      // 4. SECURITY NOTE: Storing password in SecureStore for account switching convenience.
-      // This is encrypted at the device level but has security implications.
-      // For production apps, consider using Firebase Custom Tokens or OAuth refresh tokens instead.
+      // 4. Salva senha localmente para troca de contas (Nota de segurança mantida)
       await SecureStore.setItemAsync(`password_${user.uid}`, password);
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!', [
@@ -80,8 +82,7 @@ export default function Register() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
           <Text style={styles.appName}>Agenda</Text>
           <Text style={styles.subtitle}>Crie sua conta gratuita</Text>
@@ -110,7 +111,21 @@ export default function Register() {
               value={document}
               onChangeText={handleDocumentChange}
               keyboardType="numeric"
-              maxLength={18} // 18 caracteres é o máximo para CNPJ formatado
+              maxLength={18}
+            />
+          </View>
+
+          {/* Campo Telefone (NOVO) */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Telefone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="(99) 99999-9999"
+              placeholderTextColor="#999"
+              value={phone}
+              onChangeText={handlePhoneChange}
+              keyboardType="phone-pad"
+              maxLength={15}
             />
           </View>
 
@@ -161,25 +176,33 @@ export default function Register() {
           </Link>
         </View>
 
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// --- FUNÇÕES DE VALIDAÇÃO E FORMATAÇÃO ---
+// --- FUNÇÕES DE MÁSCARA E VALIDAÇÃO ---
+
+function formatPhone(v: string) {
+  v = v.replace(/\D/g, "");
+  if (v.length > 11) v = v.slice(0, 11); // Limita ao tamanho maximo
+  // Formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+  if (v.length > 10) return v.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (v.length > 6) return v.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+  if (v.length > 2) return v.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
+  if (v.length > 0) return v.replace(/^(\d{0,2})/, "($1");
+  return v;
+}
 
 function formatCpfCnpj(value: string) {
   const cleanValue = value.replace(/\D/g, '');
-  
   if (cleanValue.length <= 11) {
-    // CPF
     return cleanValue
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d{1,2})/, '$1-$2')
       .replace(/(-\d{2})\d+?$/, '$1');
   } else {
-    // CNPJ
     return cleanValue
       .replace(/(\d{2})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
@@ -192,55 +215,47 @@ function formatCpfCnpj(value: string) {
 function validateCpfCnpj(val: string) {
   if (!val) return false;
   const cleanVal = val.replace(/\D/g, '');
-
-  if (cleanVal.length === 11) {
-    return validateCPF(cleanVal);
-  } else if (cleanVal.length === 14) {
-    return validateCNPJ(cleanVal);
-  }
+  if (cleanVal.length === 11) return validateCPF(cleanVal);
+  if (cleanVal.length === 14) return validateCNPJ(cleanVal);
   return false;
 }
 
 function validateCPF(cpf: string) {
   if (/^(\d)\1+$/.test(cpf)) return false;
   let sum = 0, remainder;
-  
   for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (11 - i);
   remainder = (sum * 10) % 11;
   if ((remainder === 10) || (remainder === 11)) remainder = 0;
   if (remainder !== parseInt(cpf.substring(9, 10))) return false;
-  
   sum = 0;
   for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (12 - i);
   remainder = (sum * 10) % 11;
   if ((remainder === 10) || (remainder === 11)) remainder = 0;
   if (remainder !== parseInt(cpf.substring(10, 11))) return false;
-  
   return true;
 }
 
 function validateCNPJ(cnpj: string) {
   if (/^(\d)\1+$/.test(cnpj)) return false;
-  // Validação simplificada de tamanho e dígitos repetidos. 
-  // Para validação completa de DV do CNPJ, recomenda-se adicionar o algoritmo completo aqui.
   return true; 
 }
-
-// --- ESTILOS ---
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  container: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
   },
+  container: {
+    flex: 1,
+  },
   header: {
     alignItems: 'center',
-    marginBottom: 32, // Reduzi um pouco para caber os novos campos em telas menores
+    marginBottom: 32,
   },
   appName: {
     fontSize: 32,
@@ -256,7 +271,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inputContainer: {
-    marginBottom: 16, // Reduzi um pouco para otimizar espaço
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
