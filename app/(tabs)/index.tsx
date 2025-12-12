@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { FlatList, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import PrimaryButton from "../../components/PrimaryButton";
 import ScheduleCard from "../../components/ScheduleCard";
 import { useSchedules } from "../../store/schedules";
+import { auth } from "../../src/config/firebase";
 
 LocaleConfig.locales["pt-br"] = {
   monthNames: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
@@ -35,6 +36,38 @@ function formatDateBR(ymd: string) {
   if (!ymd || ymd.length < 10) return ymd;
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
+}
+
+function UserDisplayName() {
+  const [user, setUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (!user?.displayName) return null;
+
+  // Pega apenas o primeiro nome para não ocupar muito espaço
+  const firstName = user.displayName.split(' ')[0];
+  const initial = firstName.charAt(0).toUpperCase();
+
+  return (
+    <View style={styles.profileChip}>
+      {user.photoURL ? (
+        <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+      ) : (
+        <View style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarInitial}>{initial}</Text>
+        </View>
+      )}
+      <Text style={styles.userName}>
+        {firstName}
+      </Text>
+    </View>
+  );
 }
 
 export default function Index() {
@@ -94,20 +127,23 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      {/* Botão compacto com data */}
-      <TouchableOpacity
-        style={styles.dateButton}
-        activeOpacity={0.7}
-        onPress={() => setCalendarOpen(!calendarOpen)}
-      >
-        <Ionicons name="calendar-outline" size={20} color="#111" />
-        <Text style={styles.dateText}>{formatDateBR(displayDate)}</Text>
-        <Ionicons
-          name={calendarOpen ? "chevron-up" : "chevron-down"}
-          size={20}
-          color="#111"
-        />
-      </TouchableOpacity>
+      {/* Row with date selector and user profile */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.dateButton}
+          activeOpacity={0.7}
+          onPress={() => setCalendarOpen(!calendarOpen)}
+        >
+          <Ionicons name="calendar-outline" size={20} color="#111" />
+          <Text style={styles.dateText}>{formatDateBR(displayDate)}</Text>
+          <Ionicons
+            name={calendarOpen ? "chevron-up" : "chevron-down"}
+            size={20}
+            color="#111"
+          />
+        </TouchableOpacity>
+        <UserDisplayName />
+      </View>
 
       {/* Calendário expansível */}
       {calendarOpen && (
@@ -167,19 +203,61 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5", paddingHorizontal: 16, paddingTop: 8 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
   dateButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    marginBottom: 12,
     gap: 8,
     borderWidth: 1,
     borderColor: "#e6e6e6",
   },
   dateText: { flex: 1, fontSize: 16, fontWeight: "600", color: "#111" },
+  profileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingRight: 12,
+    borderRadius: 32,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ddd',
+  },
+  avatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+  },
   calendar: {
     borderRadius: 12,
     overflow: "hidden",
