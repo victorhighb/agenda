@@ -11,9 +11,9 @@ export default function RootLayout() {
           {/* Telas de Auth sem header */}
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="register" options={{ headerShown: false }} />
-          <Stack.Screen name="register_professional" options={{ title: "Registrar Profissional" }} />
 
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="register_professional" options={{ title: "Registrar Profissional" }} />
           <Stack.Screen name="user_profile" options={{ title: "Meu Perfil" }} />
           <Stack.Screen name="clients_register" options={{ title: "Novo Cliente" }} />
           <Stack.Screen name="scheduling" options={{ title: "Novo Agendamento" }} />
