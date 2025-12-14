@@ -110,14 +110,14 @@ export default function Login() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         
-        <View style={styles. header}>
-          <Text style={styles. appName}>Agenda</Text>
-          <Text style={styles. subtitle}>Bem-vindo de volta</Text>
+        <View style={styles.header}>
+          <Text style={styles.appName}>Agenda</Text>
+          <Text style={styles.subtitle}>Bem-vindo de volta</Text>
         </View>
 
-        <View style={styles. form}>
+        <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <Text style={styles. label}>Estabelecimento (CNPJ)</Text>
+            <Text style={styles.label}>Estabelecimento (CNPJ)</Text>
             <TextInput
               style={styles.input}
               placeholder="00.000.000/0000-00"
@@ -130,7 +130,7 @@ export default function Login() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles. label}>E-mail/Telefone</Text>
+            <Text style={styles.label}>E-mail/Telefone</Text>
             <TextInput
               style={styles.input}
               placeholder="Digite seu e-mail"
@@ -143,7 +143,7 @@ export default function Login() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles. label}>Senha</Text>
+            <Text style={styles.label}>Senha</Text>
             <TextInput
               style={styles.input}
               placeholder="Digite sua senha"
@@ -167,7 +167,7 @@ export default function Login() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.forgotButton} onPress={openForgotModal}>
-            <Text style={styles. forgotText}>Esqueci minha senha</Text>
+            <Text style={styles.forgotText}>Esqueci minha senha</Text>
           </TouchableOpacity>
         </View>
 
@@ -190,7 +190,7 @@ export default function Login() {
         onRequestClose={() => setForgotModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles. modalContainer}>
+          <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Recuperar Senha</Text>
             <Text style={styles.modalDescription}>
               Digite seu e-mail e enviaremos um link para você redefinir sua senha. 
@@ -215,12 +215,12 @@ export default function Login() {
               {resetLoading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles. modalButtonText}>Enviar e-mail</Text>
+                <Text style={styles.modalButtonText}>Enviar e-mail</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles. modalCancelButton}
+              style={styles.modalCancelButton}
               onPress={() => {
                 setForgotModalVisible(false);
                 setResetEmail('');

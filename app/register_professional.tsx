@@ -47,7 +47,6 @@ export default function RegisterProfessional() {
       // Usamos o documento (CNPJ/CPF) como ID do salão para facilitar lookup
       const salonId = salonDocument.replace(/\D/g, ''); // Remove formatação
       await setDoc(doc(db, "salons", salonId), {
-        salonId: salonId,
         name: salonName,
         document: salonDocument,
         ownerId: user.uid,
