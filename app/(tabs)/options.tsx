@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Alert,
   StyleSheet,
@@ -14,20 +14,24 @@ import {
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../../src/config/firebase";
 
+interface Professional {
+  id: string;
+  uid: string;
+  name: string;
+  email: string;
+  phone: string;
+  photoURL: string | null;
+}
+
 export default function Options() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [salonName, setSalonName] = useState("");
   const [salonDocument, setSalonDocument] = useState("");
   const [salonId, setSalonId] = useState("");
-  const [professionals, setProfessionals] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
 
-  useEffect(() => {
-    fetchUserSalonData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchProfessionals = async (userSalonId: string) => {
+  const fetchProfessionals = useCallback(async (userSalonId: string) => {
     try {
       const usersCollection = collection(db, "users");
       const q = query(usersCollection, where("salonId", "==", userSalonId));
@@ -50,9 +54,9 @@ export default function Options() {
       console.error("Erro ao buscar profissionais:", error);
       Alert.alert("Erro", "Não foi possível carregar os profissionais");
     }
-  };
+  }, []);
 
-  const fetchUserSalonData = async () => {
+  const fetchUserSalonData = useCallback(async () => {
     try {
       const user = auth.currentUser;
       if (!user) {
@@ -100,7 +104,11 @@ export default function Options() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchProfessionals]);
+
+  useEffect(() => {
+    fetchUserSalonData();
+  }, [fetchUserSalonData]);
 
   const handleRegisterProfessional = () => {
     if (!salonName || !salonDocument) {
