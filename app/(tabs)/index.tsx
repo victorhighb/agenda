@@ -39,6 +39,7 @@ function formatDateBR(ymd: string) {
 }
 
 function UserDisplayName() {
+  const router = useRouter();
   const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
@@ -55,7 +56,11 @@ function UserDisplayName() {
   const initial = firstName.charAt(0).toUpperCase();
 
   return (
-    <View style={styles.profileChip}>
+    <TouchableOpacity
+      style={styles.profileChip}
+      onPress={() => router.push('/user_profile')}
+      activeOpacity={0.7}
+    >
       {user.photoURL ? (
         <Image source={{ uri: user.photoURL }} style={styles.avatar} />
       ) : (
@@ -66,7 +71,7 @@ function UserDisplayName() {
       <Text style={styles.userName}>
         {firstName}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
