@@ -1,83 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore'; 
-import * as SecureStore from 'expo-secure-store';
-import { auth, db } from '../src/config/firebase'; 
 
 export default function Register() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [document, setDocument] = useState(''); // Estado para CPF/CNPJ
-  const [phone, setPhone] = useState(''); // Estado para Telefone
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [salonName, setSalonName] = useState('');
+  const [salonDocument, setSalonDocument] = useState(''); // Estado para CPF/CNPJ do Salão
 
   // Aplica a máscara de Documento enquanto digita
   const handleDocumentChange = (text: string) => {
-    setDocument(formatCpfCnpj(text));
+    setSalonDocument(formatCpfCnpj(text));
   };
 
-  // Aplica a máscara de Telefone enquanto digita
-  const handlePhoneChange = (text: string) => {
-    setPhone(formatPhone(text));
-  };
-
-  const handleRegister = async () => {
+  const handleNext = async () => {
     // Validação básica de campos vazios
-    if (name.trim().length === 0 || email.trim().length === 0 || password.trim().length === 0 || document.trim().length === 0 || phone.trim().length === 0) {
+    if (salonName.trim().length === 0 || salonDocument.trim().length === 0) {
       Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
       return;
     }
 
     // Validação específica de CPF/CNPJ
-    if (!validateCpfCnpj(document)) {
+    if (!validateCpfCnpj(salonDocument)) {
       Alert.alert('Atenção', 'CPF ou CNPJ inválido.');
       return;
     }
 
-    setLoading(true);
-    try {
-      // 1. Cria o usuário na autenticação (Authentication)
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // 2. Atualiza o perfil do usuário (Authentication)
-      await updateProfile(user, {
-        displayName: name
-      });
-
-      // 3. Salva os dados complementares no Banco de Dados (Firestore)
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        name: name,
-        email: email,
-        cpfCnpj: document, // Salva o documento validado
-        phone: phone,      // Salva o telefone
-        createdAt: new Date().toISOString(),
-      });
-
-      // 4. Salva senha localmente para troca de contas (Nota de segurança mantida)
-      await SecureStore.setItemAsync(`password_${user.uid}`, password);
-
-      Alert.alert('Sucesso', 'Conta criada com sucesso!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') }
-      ]);
-
-    } catch (error: any) {
-      console.error(error);
-      let msg = "Não foi possível criar a conta.";
-      if (error.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
-      if (error.code === 'auth/invalid-email') msg = "E-mail inválido.";
-      if (error.code === 'auth/weak-password') msg = "A senha deve ter pelo menos 6 caracteres.";
-      
-      Alert.alert('Erro no Cadastro', msg);
-    } finally {
-      setLoading(false);
-    }
+    // Navega para a próxima tela passando os dados do salão
+    router.push({
+      pathname: '/register_professional',
+      params: {
+        salonName: salonName,
+        salonDocument: salonDocument,
+      }
+    });
   };
 
   return (
@@ -85,85 +41,41 @@ export default function Register() {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
           <Text style={styles.appName}>Agenda</Text>
-          <Text style={styles.subtitle}>Crie sua conta gratuita</Text>
+          <Text style={styles.subtitle}>Cadastre seu Salão</Text>
         </View>
 
         <View style={styles.form}>
           
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nome completo</Text>
+            <Text style={styles.label}>Nome do Estabelecimento</Text>
             <TextInput
               style={styles.input}
-              placeholder="Seu nome"
+              placeholder="Ex: Salão Le Belle"
               placeholderTextColor="#999"
-              value={name}
-              onChangeText={setName}
+              value={salonName}
+              onChangeText={setSalonName}
             />
           </View>
 
-          {/* Campo CPF/CNPJ */}
+          {/* Campo CPF/CNPJ do Salão */}
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>CPF ou CNPJ</Text>
+            <Text style={styles.label}>CNPJ/CPF Estabelecimento</Text>
             <TextInput
               style={styles.input}
-              placeholder="000.000.000-00"
+              placeholder="00.000.000/0000-00"
               placeholderTextColor="#999"
-              value={document}
+              value={salonDocument}
               onChangeText={handleDocumentChange}
               keyboardType="numeric"
               maxLength={18}
             />
           </View>
 
-          {/* Campo Telefone (NOVO) */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Telefone</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="(99) 99999-9999"
-              placeholderTextColor="#999"
-              value={phone}
-              onChangeText={handlePhoneChange}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>E-mail</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="seu@email.com"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Senha</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Crie uma senha"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
           <TouchableOpacity 
-            style={[styles.button, loading && { opacity: 0.7 }]} 
-            onPress={handleRegister}
-            disabled={loading}
+            style={styles.button} 
+            onPress={handleNext}
           >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.buttonText}>Cadastrar</Text>
-            )}
+            <Text style={styles.buttonText}>OK</Text>
           </TouchableOpacity>
         </View>
 
@@ -182,17 +94,6 @@ export default function Register() {
 }
 
 // --- FUNÇÕES DE MÁSCARA E VALIDAÇÃO ---
-
-function formatPhone(v: string) {
-  v = v.replace(/\D/g, "");
-  if (v.length > 11) v = v.slice(0, 11); // Limita ao tamanho maximo
-  // Formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
-  if (v.length > 10) return v.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-  if (v.length > 6) return v.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
-  if (v.length > 2) return v.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
-  if (v.length > 0) return v.replace(/^(\d{0,2})/, "($1");
-  return v;
-}
 
 function formatCpfCnpj(value: string) {
   const cleanValue = value.replace(/\D/g, '');
@@ -239,6 +140,7 @@ function validateCNPJ(cnpj: string) {
   if (/^(\d)\1+$/.test(cnpj)) return false;
   return true; 
 }
+
 
 const styles = StyleSheet.create({
   safeArea: {
