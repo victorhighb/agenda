@@ -13,7 +13,7 @@ import {
   Image,
 } from "react-native";
 import { signOut, signInWithEmailAndPassword, updateProfile, User } from "firebase/auth";
-import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
@@ -27,6 +27,7 @@ export default function Profile() {
   
   // Estado local para guardar dados extras do Firestore (ex: telefone)
   const [userPhone, setUserPhone] = useState<string>(""); 
+  const [userSalonId, setUserSalonId] = useState<string>("");
 
   const [avatarUrl, setAvatarUrl] = useState(auth.currentUser?.photoURL);
   const [accountsModalVisible, setAccountsModalVisible] = useState(false);
@@ -48,12 +49,14 @@ export default function Profile() {
           if (userDocSnap.exists()) {
             const data = userDocSnap.data();
             setUserPhone(data.phone || ""); // Define o telefone
+            setUserSalonId(data.salonId || ""); // Define o salonId
           }
         } catch (error) {
           console.error("Erro ao buscar dados do usuário:", error);
         }
       } else {
         setUserPhone("");
+        setUserSalonId("");
       }
     });
 
@@ -122,7 +125,17 @@ export default function Profile() {
     setLoading(true);
     try {
       const usersCollection = collection(db, "users");
-      const usersSnapshot = await getDocs(usersCollection);
+      
+      // Filtrar por salonId se disponível
+      let usersSnapshot;
+      if (userSalonId) {
+        const q = query(usersCollection, where("salonId", "==", userSalonId));
+        usersSnapshot = await getDocs(q);
+      } else {
+        // Se não tiver salonId, busca todos (comportamento anterior)
+        usersSnapshot = await getDocs(usersCollection);
+      }
+      
       const usersList = usersSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
