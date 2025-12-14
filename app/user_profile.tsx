@@ -238,12 +238,7 @@ export default function Profile() {
 
       {/* Informações do usuário */}
       <View style={styles.infoContainer}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
-          <TouchableOpacity onPress={pickImage} style={styles.editNameButton}>
-            <Ionicons name="pencil" size={20} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.name}>{user?.displayName || "Usuário"}</Text>
         <Text style={styles.email}>{user?.email || "email@exemplo.com"}</Text>
       </View>
 
@@ -401,24 +396,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 32,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  editNameButton: {
-    padding: 4,
-  },
   name: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#000",
-    marginBottom: 4,
   },
   email: {
     fontSize: 16,
     color: "#666",
+    marginTop: 4,
   },
   cardsContainer: {
     gap: 12,

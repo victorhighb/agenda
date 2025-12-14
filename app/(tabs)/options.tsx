@@ -71,7 +71,7 @@ export default function Options() {
     if (!salonName || !salonDocument) {
       Alert.alert(
         "Atenção",
-        "Não foi possível obter os dados do salão. Por favor, entre em contato com o administrador."
+        "Não foi possível obter os dados completos do salão. Certifique-se de que o salão foi cadastrado corretamente."
       );
       return;
     }
@@ -94,12 +94,18 @@ export default function Options() {
     );
   }
 
+  const canRegisterProfessional = !!salonName && !!salonDocument;
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <TouchableOpacity
-          style={styles.optionButton}
+          style={[
+            styles.optionButton,
+            !canRegisterProfessional && styles.optionButtonDisabled
+          ]}
           onPress={handleRegisterProfessional}
+          disabled={!canRegisterProfessional}
         >
           <View style={styles.iconContainer}>
             <Ionicons name="person-add-outline" size={28} color="#000" />
@@ -107,7 +113,9 @@ export default function Options() {
           <View style={styles.textContainer}>
             <Text style={styles.optionTitle}>Cadastrar Profissional</Text>
             <Text style={styles.optionDescription}>
-              Adicione novos profissionais ao seu salão
+              {canRegisterProfessional
+                ? "Adicione novos profissionais ao seu salão"
+                : "Dados do salão incompletos"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={24} color="#666" />
@@ -143,6 +151,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     gap: 12,
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
   },
   iconContainer: {
     width: 48,
