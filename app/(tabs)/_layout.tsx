@@ -44,7 +44,7 @@ export default function TabsLayout() {
             title: "Opções",
             tabBarIcon: ({color, size}) => (
                 <Ionicons
-                    name="settings-outline"
+                    name="settings"
                     size={size}
                     color={color}
                 />

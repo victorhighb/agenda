@@ -25,8 +25,7 @@ export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState(auth.currentUser);
   
-  // Estado local para guardar dados extras do Firestore (ex: telefone)
-  const [userPhone, setUserPhone] = useState<string>(""); 
+  // Estado local para guardar dados extras do Firestore
   const [userSalonId, setUserSalonId] = useState<string>("");
 
   const [avatarUrl, setAvatarUrl] = useState(auth.currentUser?.photoURL);
@@ -48,14 +47,12 @@ export default function Profile() {
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
             const data = userDocSnap.data();
-            setUserPhone(data.phone || ""); // Define o telefone
             setUserSalonId(data.salonId || ""); // Define o salonId
           }
         } catch (error) {
           console.error("Erro ao buscar dados do usuário:", error);
         }
       } else {
-        setUserPhone("");
         setUserSalonId("");
       }
     });
@@ -144,7 +141,6 @@ export default function Profile() {
           name: data.name,
           email: data.email,
           photoURL: data.photoURL || null,
-          phone: data.phone || "", // Trazemos o telefone na lista de troca de contas também
         };
       });
       setUsers(usersList);
@@ -272,15 +268,6 @@ export default function Profile() {
             <Text style={styles.infoCardValue}>{user?.email || "Não informado"}</Text>
           </View>
         </View>
-
-        {/* Novo Card de Telefone */}
-        <View style={styles.infoCard}>
-          <Ionicons name="call-outline" size={24} color="#000" />
-          <View style={styles.infoCardContent}>
-            <Text style={styles.infoCardLabel}>Telefone</Text>
-            <Text style={styles.infoCardValue}>{userPhone || "Não informado"}</Text>
-          </View>
-        </View>
       </View>
 
       {/* Botões */}
@@ -341,10 +328,6 @@ export default function Profile() {
                     <View style={styles.accountInfo}>
                       <Text style={styles.accountName}>{item.name || "Sem nome"}</Text>
                       <Text style={styles.accountEmail}>{item.email}</Text>
-                      {/* Exibe o telefone na lista de troca de contas se houver */}
-                      {!!item.phone && (
-                        <Text style={styles.accountPhone}>{item.phone}</Text>
-                      )}
                     </View>
                     {item.uid === user?.uid && (
                       <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
@@ -546,11 +529,6 @@ const styles = StyleSheet.create({
   accountEmail: {
     fontSize: 14,
     color: "#666",
-  },
-  accountPhone: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 2,
   },
   emptyContainer: {
     padding: 40,
