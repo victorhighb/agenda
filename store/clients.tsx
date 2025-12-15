@@ -56,7 +56,7 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
         
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
-          const userSalonId = userData.salonId;
+          const userSalonId = userData?.salonId || null;
           setSalonId(userSalonId);
 
           if (userSalonId) {
@@ -104,7 +104,7 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       await addDoc(collection(db, "clients"), {
         ...c,
         userId: user.uid, // Mantém userId para auditoria (quem criou)
-        salonId: salonId, // Adiciona salonId para compartilhamento
+        salonId, // Adiciona salonId para compartilhamento
         createdAt: new Date() // Útil para ordenação futura
       });
       // Não precisamos dar setClients, o onSnapshot fará isso sozinho!
@@ -129,7 +129,8 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       }
       
       const clientData = clientDoc.data();
-      if (clientData.salonId !== salonId) {
+      // Verifica se o cliente tem salonId e se pertence ao mesmo salão
+      if (!clientData?.salonId || clientData.salonId !== salonId) {
         throw new Error("Você não tem permissão para atualizar este cliente");
       }
       
@@ -155,7 +156,8 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       }
       
       const clientData = clientDoc.data();
-      if (clientData.salonId !== salonId) {
+      // Verifica se o cliente tem salonId e se pertence ao mesmo salão
+      if (!clientData?.salonId || clientData.salonId !== salonId) {
         throw new Error("Você não tem permissão para remover este cliente");
       }
       
