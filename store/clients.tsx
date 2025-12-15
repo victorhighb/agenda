@@ -37,8 +37,16 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
 
   // Efeito para monitorar login e buscar dados em tempo real
   useEffect(() => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
     // 1. Monitora se o usuário mudou (login/logout)
     const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+      // Limpa listener anterior se existir
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+
       setUser(currentUser);
 
       if (currentUser) {
@@ -59,15 +67,13 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
             );
 
             // 4. 'onSnapshot' fica ouvindo o banco de dados em tempo real
-            const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
+            unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
               const clientsList: Client[] = [];
               querySnapshot.forEach((doc) => {
                 clientsList.push({ id: doc.id, ...doc.data() } as Client);
               });
               setClients(clientsList);
             });
-
-            return () => unsubscribeSnapshot();
           } else {
             // Se não tem salonId, limpa a lista (usuário sem salão configurado)
             setClients([]);
@@ -84,7 +90,12 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   const addClient = async (c: Omit<Client, "id">) => {
@@ -104,8 +115,24 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
   };
 
   const updateClient = async (id: string, patch: Partial<Client>) => {
+    if (!salonId) {
+      console.error("Não é possível atualizar cliente sem salonId");
+      throw new Error("Usuário não tem salão configurado");
+    }
+    
     try {
       const docRef = doc(db, "clients", id);
+      // Verifica se o cliente pertence ao mesmo salão
+      const clientDoc = await getDoc(docRef);
+      if (!clientDoc.exists()) {
+        throw new Error("Cliente não encontrado");
+      }
+      
+      const clientData = clientDoc.data();
+      if (clientData.salonId !== salonId) {
+        throw new Error("Você não tem permissão para atualizar este cliente");
+      }
+      
       await updateDoc(docRef, patch);
     } catch (error) {
       console.error("Erro ao atualizar:", error);
@@ -114,8 +141,25 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
   };
 
   const removeClient = async (id: string) => {
+    if (!salonId) {
+      console.error("Não é possível remover cliente sem salonId");
+      throw new Error("Usuário não tem salão configurado");
+    }
+    
     try {
-      await deleteDoc(doc(db, "clients", id));
+      const docRef = doc(db, "clients", id);
+      // Verifica se o cliente pertence ao mesmo salão
+      const clientDoc = await getDoc(docRef);
+      if (!clientDoc.exists()) {
+        throw new Error("Cliente não encontrado");
+      }
+      
+      const clientData = clientDoc.data();
+      if (clientData.salonId !== salonId) {
+        throw new Error("Você não tem permissão para remover este cliente");
+      }
+      
+      await deleteDoc(docRef);
     } catch (error) {
       console.error("Erro ao remover:", error);
       throw error;
