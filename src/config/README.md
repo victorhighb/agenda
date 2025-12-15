@@ -53,6 +53,11 @@ For production, update your Firestore security rules to ensure data privacy:
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to get user's salonId
+    function getUserSalonId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId;
+    }
+    
     // Users can only read/write their own user document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -60,13 +65,33 @@ service cloud.firestore {
       allow list: if request.auth != null;
     }
     
-    // Clients belong to specific users
+    // Clients are shared among all professionals in the same salon
     match /clients/{clientId} {
-      allow read, write: if request.auth != null && 
-                           resource.data.userId == request.auth.uid;
+      // Allow read if user belongs to the same salon as the client
+      allow read: if request.auth != null && 
+                     resource.data.salonId == getUserSalonId();
+      
+      // Allow create if user is authenticated and client has the user's salonId
+      allow create: if request.auth != null && 
+                       request.resource.data.salonId == getUserSalonId();
+      
+      // Allow update/delete if user belongs to the same salon as the client
+      allow update, delete: if request.auth != null && 
+                               resource.data.salonId == getUserSalonId();
     }
     
-    // Schedules belong to specific users
+    // Salons collection (for salon information)
+    match /salons/{salonId} {
+      // Allow read if user belongs to this salon
+      allow read: if request.auth != null && 
+                     getUserSalonId() == salonId;
+      
+      // Allow write only to salon owner
+      allow write: if request.auth != null && 
+                      resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Schedules belong to specific users (can be updated later for salon-wide if needed)
     match /schedules/{scheduleId} {
       allow read, write: if request.auth != null && 
                            resource.data.userId == request.auth.uid;
