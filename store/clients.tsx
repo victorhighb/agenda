@@ -40,7 +40,7 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
     let unsubscribeSnapshot: (() => void) | null = null;
 
     // 1. Monitora se o usuário mudou (login/logout)
-    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
       // Limpa listener anterior se existir
       if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
@@ -52,37 +52,41 @@ export function ClientsProvider({ children }: { children: ReactNode }) {
       if (currentUser) {
         // 2. Busca o salonId do usuário logado na coleção users
         const userDocRef = doc(db, "users", currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          const userSalonId = userData?.salonId || null;
-          setSalonId(userSalonId);
+        getDoc(userDocRef).then((userDocSnap) => {
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            const userSalonId = userData?.salonId || null;
+            setSalonId(userSalonId);
 
-          if (userSalonId) {
-            // 3. Se está logado e tem salonId, cria uma query para buscar clientes do salão
-            const q = query(
-              collection(db, "clients"), 
-              where("salonId", "==", userSalonId)
-            );
+            if (userSalonId) {
+              // 3. Se está logado e tem salonId, cria uma query para buscar clientes do salão
+              const q = query(
+                collection(db, "clients"), 
+                where("salonId", "==", userSalonId)
+              );
 
-            // 4. 'onSnapshot' fica ouvindo o banco de dados em tempo real
-            unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
-              const clientsList: Client[] = [];
-              querySnapshot.forEach((doc) => {
-                clientsList.push({ id: doc.id, ...doc.data() } as Client);
+              // 4. 'onSnapshot' fica ouvindo o banco de dados em tempo real
+              unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
+                const clientsList: Client[] = [];
+                querySnapshot.forEach((doc) => {
+                  clientsList.push({ id: doc.id, ...doc.data() } as Client);
+                });
+                setClients(clientsList);
               });
-              setClients(clientsList);
-            });
+            } else {
+              // Se não tem salonId, limpa a lista (usuário sem salão configurado)
+              setClients([]);
+            }
           } else {
-            // Se não tem salonId, limpa a lista (usuário sem salão configurado)
+            // Se documento do usuário não existe, limpa tudo
+            setSalonId(null);
             setClients([]);
           }
-        } else {
-          // Se documento do usuário não existe, limpa tudo
+        }).catch((error) => {
+          console.error("Erro ao buscar dados do usuário:", error);
           setSalonId(null);
           setClients([]);
-        }
+        });
       } else {
         // Se deslogou, limpa a lista local e salonId
         setSalonId(null);
