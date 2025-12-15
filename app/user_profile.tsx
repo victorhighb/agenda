@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -64,7 +63,7 @@ export default function Profile() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (status !== 'granted') {
-      Alert.alert("Permissão necessária", "Precisamos de acesso à galeria.");
+      // Alert removido
       return;
     }
 
@@ -108,11 +107,11 @@ export default function Profile() {
       }
 
       setAvatarUrl(finalUrl);
-      Alert.alert("Sucesso", "Foto de perfil atualizada!");
+      // Alert de sucesso removido
 
     } catch (error: any) {
       console.error("Erro detalhado:", error);
-      Alert.alert("Erro no Upload", "Não foi possível enviar a imagem. Tente novamente.");
+      // Alert de erro removido
     } finally {
       setUploadingImage(false);
     }
@@ -146,7 +145,7 @@ export default function Profile() {
       setUsers(usersList);
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
-      Alert.alert("Erro", "Não foi possível carregar as contas.");
+      // Alert de erro removido
     } finally {
       setLoading(false);
     }
@@ -155,43 +154,29 @@ export default function Profile() {
   const handleSwitchAccount = async (selectedUser: any) => {
     if (selectedUser.uid === user?.uid) return;
 
-    Alert.alert(
-      "Trocar de Conta",
-      `Deseja trocar para a conta de ${selectedUser.name}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Trocar",
-          onPress: async () => {
-            setAccountsModalVisible(false);
-            setLoading(true);
-            try {
-              const storedPassword = await SecureStore.getItemAsync(`password_${selectedUser.uid}`);
-              if (!storedPassword) {
-                await signOut(auth);
-                Alert.alert(
-                  "Senha Necessária",
-                  `Para trocar para a conta de ${selectedUser.name}, você precisa fazer login primeiro.`,
-                  [{ text: "OK", onPress: () => router.replace("/login") }]
-                );
-                return;
-              }
-              await signOut(auth);
-              await signInWithEmailAndPassword(auth, selectedUser.email, storedPassword);
-              Alert.alert("Sucesso", `Conta trocada para ${selectedUser.name}`);
-            } catch (error: any) {
-              console.error("Erro ao trocar conta:", error);
-              if (error.code === 'auth/invalid-credential') {
-                await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
-                Alert.alert("Erro", "Credenciais inválidas.");
-              }
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    // Lógica de troca executada diretamente sem Alert de confirmação
+    setAccountsModalVisible(false);
+    setLoading(true);
+    try {
+      const storedPassword = await SecureStore.getItemAsync(`password_${selectedUser.uid}`);
+      if (!storedPassword) {
+        await signOut(auth);
+        // Alert removido, redirecionando direto
+        router.replace("/login");
+        return;
+      }
+      await signOut(auth);
+      await signInWithEmailAndPassword(auth, selectedUser.email, storedPassword);
+      // Alert de sucesso removido
+    } catch (error: any) {
+      console.error("Erro ao trocar conta:", error);
+      if (error.code === 'auth/invalid-credential') {
+        await SecureStore.deleteItemAsync(`password_${selectedUser.uid}`);
+        // Alert de erro removido
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpenAccountsModal = () => {
@@ -200,25 +185,14 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Sair",
-      "Tem certeza que deseja sair?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              router.replace("/login");
-            } catch {
-              Alert.alert("Erro", "Não foi possível sair.");
-            }
-          },
-        },
-      ]
-    );
+    // Lógica de logout executada diretamente sem Alert de confirmação
+    try {
+      await signOut(auth);
+      router.replace("/login");
+    } catch {
+      // Alert de erro removido
+      console.log("Erro ao tentar sair");
+    }
   };
 
   return (

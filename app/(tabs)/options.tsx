@@ -167,7 +167,9 @@ export default function Options() {
         {/* Lista de Profissionais */}
         {salonId && (
           <View style={styles.professionalsSection}>
-            <Text style={styles.sectionTitle}>Profissionais do Salão</Text>
+            <Text style={styles.sectionTitle}>
+              {salonName ? `Profissionais do ${salonName}` : "Profissionais do Salão"}
+            </Text>
             {professionals.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="people-outline" size={48} color="#ccc" />
